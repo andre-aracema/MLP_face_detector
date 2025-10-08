@@ -27,30 +27,34 @@ def calcular_iou(box1, box2):
 
 
 # Gera amostras de face e não-face a partir de um dataset
-def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_treshould_neg=0.1):
+def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=0.1):
     # Lista onde cada item contém as coordenadas dos bouding box e caminho para imagem
     all_dataset_info = []
+
+    print("Lendo as arquivos _annotation")
 
     for base_path in bases_path:
         annotation_files = glob.glob(os.path.join(base_path, '*_annotations.txt'))
         for file_path in annotation_files:
             try:
                 df_file = pd.read_csv(file_path)
-                for _, row in df_file.interrows():
+                for _, row in df_file.iterrows():
                     image_path = os.path.join(base_path, row['filename'])
                     if os.path.exists(image_path):
                         bbox = [int(row['x1']), int(row['y1']), int(row['x2']), int(row['y2'])]
                         all_dataset_info.append({'image_path': image_path, 'bbox': bbox})
 
-            except Excepetion:
+            except Exception:
                 print("Erro ao ler arquivo")
 
     # Embaralha o dataset para garantir variedade
     random.shuffle(all_dataset_info)
 
-    face_sample = []
-    non_face_sample = []
+    face_samples = []
+    non_face_samples = []
     processed_images = 0
+
+    print("Criando imagens de face e no face para treinamento da MLP")
 
     # Processo de normalização/criação das amostras
     while len(face_samples) < num_samples or len(non_face_samples) < num_samples:
@@ -97,7 +101,7 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_treshould_neg=
                             non_face_samples.append(non_face_crop)
                             break
 
-        except Excepetion:
+        except Exception:
             print("Erro ao ler imagem")
 
     # Retorna dois array NumPy (face e non_face)

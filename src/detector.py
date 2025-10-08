@@ -5,15 +5,15 @@ from tensorflow.keras.models import load_model
 from .pre_processamento import calcular_iou
 
 class FaceDetector:
-    def __init__(self, model_path, tam_janela=(32, 32), confidence_treshould=0.95,
-                scala_factor=0.75, stride=6, iou_nms_treshould=0.2):
+    def __init__(self, model_path, tam_janela=(32, 32), confidence_threshold=0.95,
+            scale_factor=0.8, stride=4, iou_nms_threshold=0.2):
 
         self.model = load_model(model_path)
         self.tam_janela = tam_janela
-        self.confidence_treshould = confidence_treshould
-        self.scala_factor = scala_factor
+        self.confidence_threshold = confidence_threshold
+        self.scale_factor = scale_factor
         self.stride = stride
-        self.iou_nms_treshould = iou_nms_treshould
+        self.iou_nms_threshold = iou_nms_threshold
 
     def sliding_window_multiscale(self, image):
         all_detections = []
@@ -24,7 +24,7 @@ class FaceDetector:
         # Copia a imagem para não modificar a original
         image_resized = image.copy()
 
-        while image_resized.shape[0] >= h and image_resized.shape[1] >= w:
+        while image_resized.shape[0] >= h_janela and image_resized.shape[1] >= w_janela:
             patches = []
             coords = []
             
@@ -58,8 +58,38 @@ class FaceDetector:
 
         return all_detections
 
-    def non_max_suression(self, detections):
+    def non_max_suppression(self, detections):
         if not detections:
             return []
 
         sorted_boxes = sorted(detections, key=lambda x: x[4], reverse=True)
+
+        final_boxes = []
+        while sorted_boxes:
+            chosen_box = sorted_boxes.pop(0)
+            final_boxes.append(chosen_box)
+
+            # Remove caixas que têm alta sobreposição com a caixa escolhida
+            sorted_boxes = [box for box in sorted_boxes if calcular_iou(chosen_box[:4], box[:4]) < self.iou_nms_threshold]
+
+        return final_boxes
+
+    def detectar(self, image_path):
+        image_color = cv2.imread(image_path)
+        if image_color is None:
+            return None, []
+            
+        gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
+        
+        raw_detections = self.sliding_window_multiscale(gray_image)
+        final_detections = self.non_max_suppression(raw_detections)
+        
+        return image_color, final_detections
+
+    @staticmethod
+    def desenhar_caixas(image, detections):
+        for (x1, y1, x2, y2, score) in detections:
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            score_text = f"{score:.2f}"
+            cv2.putText(image, score_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        return image
