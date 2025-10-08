@@ -1,0 +1,24 @@
+# Ignorar a pasta de dados inteira
+data/
+
+# Ignorar a pasta de modelos treinados (são artefatos, não código-fonte)
+models/
+
+# Ignorar ambientes virtuais do Python
+.venv/
+venv/
+ENV/
+
+# Ignorar caches e arquivos compilados do Python
+__pycache__/
+*.pyc
+
+# Ignorar arquivos de configuração de IDEs
+.vscode/
+.idea/
+
+# Ignorar caches de testes
+.pytest_cache/
+
+# Ignorar arquivos de notebook checkpoints
+.ipynb_checkpoints/
