@@ -8,7 +8,7 @@ from .arquitetura_modelo import construir_mlp
 def treinar():
     # Parâmetros
     bases_path = ['data/Derived_YTFaces_160x160/Only_famous_high_quality', 'data/Derived_YTFaces_160x160/Only_famous_low_quality']
-    num_samples = 100000
+    num_samples = 300000     # Testar na GPU
     tam_janela = (32, 32)
     model_save_path = 'models/detector_faces.keras'
 

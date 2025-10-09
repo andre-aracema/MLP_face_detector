@@ -25,6 +25,17 @@ def calcular_iou(box1, box2):
     
     return intersection_area / union_area
 
+# Inverte a imagem horizontalmente
+def image_flip(image):
+    return cv2.flip(image, 1)
+
+# Altera o brilho e o contraste da imagem de forma aleatória
+def image_brightness_contrast(image, alpha_range=(0.8, 1.2), beta_range=(-20, 20)):
+    alpha = random.uniform(alpha_range[0], alpha_range[1])
+    beta = random.randint(beta_range[0], beta_range[1])
+    
+    augmented_image = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+    return augmented_image
 
 # Gera amostras de face e não-face a partir de um dataset
 def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=0.1):
@@ -84,6 +95,12 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
                         face_resized = cv2.resize(face_crop, tam_janela)
                         face_samples.append(face_resized)
 
+                        face_flipped = image_flip(face_resized)
+
+                        face_samples.append(face_resized)
+                        face_samples.append(image_flip(face_resized))
+                        face_samples.append(image_brightness_contrast(face_resized))
+                        
             # Amostras No Face
             if len(non_face_samples) < num_samples:
                 max_attempts = 50

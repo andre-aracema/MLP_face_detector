@@ -3,7 +3,7 @@ from src.treinamento import treinar
 from src.detector import FaceDetector
 
 def main():
-    ACAO_EXECUTAR = 'detectar'
+    ACAO_EXECUTAR = 'treinar'
     CAMINHO_IMAGEM = 'data/Derived_YTFaces_160x160/More_people/Aaron_Sorkin/3/3.425.jpg'
 
     if ACAO_EXECUTAR == 'treinar':
