@@ -26,9 +26,9 @@ def treinar():
 
     X_normalized = X.reshape(-1, tam_janela[0] * tam_janela[1]) / 255.0
 
-    # Divisão 60-20-20 (treino-teste-validação)
+    # Divisão 80-10-10 (treino-teste-validação)
     X_train, X_temp, y_train, y_temp = train_test_split(
-        X_normalized, y, test_size=0.4, random_state=21, stratify=y
+        X_normalized, y, test_size=0.2, random_state=21, stratify=y
     )
 
     X_val, X_test, y_val, y_test = train_test_split(
