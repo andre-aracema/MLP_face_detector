@@ -65,10 +65,12 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
     non_face_samples = []
     processed_images = 0
 
+    tam_img_treino = num_samples * 3
+
     print("Criando imagens de face e no face para treinamento da MLP")
 
     # Processo de normalização/criação das amostras
-    while len(face_samples) < num_samples or len(non_face_samples) < num_samples:
+    while len(face_samples) < tam_img_treino or len(non_face_samples) < tam_img_treino:
         if processed_images >= len(all_dataset_info):
             break
 
@@ -85,7 +87,7 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
             face_bbox = info['bbox']
 
             # Amostras Face
-            if len(face_samples) < num_samples:
+            if len(face_samples) < tam_img_treino:
                 x1, y1, x2, y2 = face_bbox
                 w, h = x2 - x1, y2 - y1
 
@@ -102,7 +104,7 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
                         face_samples.append(image_brightness_contrast(face_resized))
                         
             # Amostras No Face
-            if len(non_face_samples) < num_samples:
+            if len(non_face_samples) < tam_img_treino:
                 max_attempts = 50
                 for _ in range(max_attempts):
                     img_h, img_w = image.shape
