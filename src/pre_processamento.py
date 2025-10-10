@@ -95,9 +95,6 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
                     face_crop = image[y1:y2, x1:x2]
                     if face_crop.shape[0] > 0 and face_crop.shape[1] > 0:
                         face_resized = cv2.resize(face_crop, tam_janela)
-                        face_samples.append(face_resized)
-
-                        face_flipped = image_flip(face_resized)
 
                         face_samples.append(face_resized)
                         face_samples.append(image_flip(face_resized))
