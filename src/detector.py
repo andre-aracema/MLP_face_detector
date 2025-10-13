@@ -5,7 +5,7 @@ from tensorflow.keras.models import load_model
 from .pre_processamento import calcular_iou
 
 class FaceDetector:
-    def __init__(self, model_path, tam_janela=(32, 32), confidence_threshold=0.995,
+    def __init__(self, model_path, tam_janela=(32, 32), confidence_threshold=0.95,
             scale_factor=0.9, stride=4, iou_nms_threshold=0.01):
 
         self.model = load_model(model_path)

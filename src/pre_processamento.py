@@ -38,7 +38,7 @@ def image_brightness_contrast(image, alpha_range=(0.8, 1.2), beta_range=(-20, 20
     return augmented_image
 
 # Gera amostras de face e não-face a partir de um dataset
-def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=0.1):
+def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=0.1, save_path=None):
     # Lista onde cada item contém as coordenadas dos bouding box e caminho para imagem
     all_dataset_info = []
 
@@ -95,14 +95,13 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
                     face_crop = image[y1:y2, x1:x2]
                     if face_crop.shape[0] > 0 and face_crop.shape[1] > 0:
                         face_resized = cv2.resize(face_crop, tam_janela)
-
                         face_samples.append(face_resized)
                         face_samples.append(image_flip(face_resized))
                         face_samples.append(image_brightness_contrast(face_resized))
                         
             # Amostras No Face
             if len(non_face_samples) < tam_img_treino:
-                max_attempts = 50
+                max_attempts = 20
                 for _ in range(max_attempts):
                     img_h, img_w = image.shape
                     if img_w >= tam_janela[0] and img_h >= tam_janela[1]:
@@ -117,8 +116,18 @@ def gerar_dados(bases_path, num_samples, tam_janela=(32, 32), iou_threshold_neg=
                             non_face_samples.append(non_face_crop)
                             break
 
+            print(f"FACE: {len(face_samples)}  NÃO FACE: {len(non_face_samples)}")
+
         except Exception:
             print("Erro ao ler imagem")
 
-    # Retorna dois array NumPy (face e non_face)
-    return np.array(face_samples), np.array(non_face_samples)
+    face_array = np.array(face_samples)
+    non_face_array = np.array(non_face_samples)
+
+    if save_path:
+        print(f"Salvando amostras de face em {save_path}_face.npy")
+        np.save(f"{save_path}_face.npy", face_array)
+        print(f"Salvando amostras de não-face em {save_path}_non_face.npy")
+        np.save(f"{save_path}_non_face.npy", non_face_array)
+        
+    return face_array, non_face_array
