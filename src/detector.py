@@ -5,8 +5,8 @@ from tensorflow.keras.models import load_model
 from .pre_processamento import calcular_iou
 
 class FaceDetector:
-    def __init__(self, model_path, tam_janela=(32, 32), confidence_threshold=0.95,
-            scale_factor=0.9, stride=4, iou_nms_threshold=0.01):
+    def __init__(self, model_path, tam_janela=(32, 32), confidence_threshold=0.995,
+            scale_factor=0.9, stride=4, iou_nms_threshold=0.01, variance_threshold=750, edge_density_threshold=0.1):
 
         self.model = load_model(model_path)
         self.tam_janela = tam_janela
@@ -14,6 +14,8 @@ class FaceDetector:
         self.scale_factor = scale_factor
         self.stride = stride
         self.iou_nms_threshold = iou_nms_threshold
+        self.variance_threshold = variance_threshold
+        self.edge_density_threshold = edge_density_threshold
 
     def sliding_window_multiscale(self, image):
         all_detections = []
@@ -32,6 +34,17 @@ class FaceDetector:
             for y in range(0, image_resized.shape[0] - h_janela, self.stride):
                 for x in range(0, image_resized.shape[1] - w_janela, self.stride):
                     patch = image_resized[y:y + h_janela, x:x + w_janela]
+                    
+                    # verifica a variancia da imagem
+                    if patch.var() < self.variance_threshold:
+                        continue
+
+                    # verifica as bordas da imagem
+                    edge_map = cv2.Canny(patch, 50, 150)
+                    density = np.count_nonzero(edge_map) / patch.size
+                    if density < self.edge_density_threshold:
+                        continue
+
                     patches.append(patch)
                     coords.append((x, y))
 
@@ -92,4 +105,5 @@ class FaceDetector:
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             score_text = f"{score:.2f}"
             cv2.putText(image, score_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
         return image
