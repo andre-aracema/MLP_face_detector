@@ -1,7 +1,8 @@
 # requirements.txt
 tensorflow
-scikit-learn
-opencv-python
-numpy
-pandas
-dlib
+scikit-learn 
+numpy 
+opencv-python 
+pandas 
+tqdm 
+joblib
