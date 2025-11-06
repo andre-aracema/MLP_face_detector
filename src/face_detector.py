@@ -54,7 +54,7 @@ class FaceDetector:
         return image
 
     # Recebe um lote de patches JÁ PROCESSADOS (1D, normalizados, ex: (N, 1024)) e retorna as pontuações brutas do modelo.
-    def predict_raw_patches(self, patches: np.ndarray) -> np.ndarray:
+    def predict_processed_patches(self, patches_processed: np.ndarray) -> np.ndarray:
         
         if patches_processed.size == 0:
             return np.array([])
@@ -123,7 +123,8 @@ class FaceDetector:
             return np.array([])
             
         patches_np = np.array(patches)
-        patches_processed = self._preprocess_patches_for_model(patches_np)
+        input_size = self.window_size[0] * self.window_size[1]
+        patches_processed = patches_np.reshape(len(patches_np), input_size).astype(np.float32) / 255.0
         
         # verbose=0 é para velocidade durante o sliding window
         return self.model.predict(patches_processed, verbose=0).flatten()

@@ -23,9 +23,9 @@ def load_preprocessed_data(load_path_base: str, window_size: tuple) -> tuple:
     print(f"Carregando dados do {load_path_base}")
 
     face_data_file = f"{load_path_base}_face.npy"
-    non_face_date_file = f"{load_path_base}_non_face.npy"
+    non_face_data_file = f"{load_path_base}_non_face.npy"
 
-    if not (os.path.exists(face_data_file) and os.path.exists(non_face_date_file)):
+    if not (os.path.exists(face_data_file) and os.path.exists(non_face_data_file)):
         print("ERRO: Dados pré processados não encontrados.")
 
     face_samples = np.load(face_data_file)
@@ -49,7 +49,7 @@ def load_preprocessed_data(load_path_base: str, window_size: tuple) -> tuple:
 def run_training_pipeline(
     X_data: np.ndarray, y_data: np.ndarray, 
     input_size: int, model_save_path: str, 
-    learning_rate: float, eochs: int, batch_size: int
+    learning_rate: float, epochs: int, batch_size: int
 ) -> Model:
 
     print("Dividindo os dados em dados de traino, validação e teste ...")

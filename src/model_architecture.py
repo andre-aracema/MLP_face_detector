@@ -11,8 +11,8 @@ def build_mlp_architecture(input_shape: tuple) -> Model:
 
     model = Sequential([
         Input(shape=input_shape, name="input_layer"),
-        Dense(128, activation="relu", name="hiden_layer_1"),
-        Dense(64, activation="relu", name="hiden_layer_2"),
+        Dense(128, activation="relu", name="hidden_layer_1"),
+        Dense(64, activation="relu", name="hidden_layer_2"),
         Dense(1, activation="sigmoid", name="output_layer")
     ], name="MLP_simples")
 

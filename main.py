@@ -24,13 +24,13 @@ from src.face_detector import FaceDetector
 # Configs de Pré-processamento e Treino v1
 BASE_PATHS_V1 = ['data/Derived_YTFaces_160x160/Only_famous_high_quality', 
                  'data/Derived_YTFaces_160x160/Only_famous_low_quality']
-NUM_SAMPLES_V1 = 500000
+NUM_SAMPLES_V1 = 2000
 DATA_PATH_V1 = 'data/preprocessed_v1' 
 MODEL_SAVE_PATH_V1 = 'models/detector_faces_v1.keras'
 
 # Configs de Mineração 
 BASE_PATHS_MINING = ['data/Derived_YTFaces_160x160/Only_famous_low_quality'] 
-NUM_SAMPLES_MINING = 100000
+NUM_SAMPLES_MINING = 1000
 DATA_PATH_MINING = 'data/preprocessed_mining' 
 MODEL_SAVE_PATH_V2 = 'models/detector_faces_v2.keras'
 
@@ -40,7 +40,7 @@ INPUT_SIZE = WINDOW_SIZE[0] * WINDOW_SIZE[1]
 LEARNING_RATE = 0.001
 EPOCHS = 50
 BATCH_SIZE = 32
-HARD_NEGATIVE_THRESHOLD = 0.99
+HARD_NEGATIVE_THRESHOLD = 0.80
 DEFAULT_DETECTION_THRESHOLD = 0.995
 
 
@@ -163,8 +163,6 @@ def main():
     except Exception as e:
         print(f"\n--- UM ERRO INESPERADO OCORREU ---")
         print(f"Erro: {e}")
-        # import traceback
-        # traceback.print_exc() # Descomente esta linha para depuração detalhada
         sys.exit(1)
 
 if __name__ == "__main__":
