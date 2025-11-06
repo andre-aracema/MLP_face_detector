@@ -52,10 +52,10 @@ def run_training_pipeline(
     learning_rate: float, epochs: int, batch_size: int
 ) -> Model:
 
-    print("Dividindo os dados em dados de traino, validação e teste ...")
+    print("Dividindo os dados em dados de treino, validação e teste ...")
 
     X_train, X_temp, y_train, y_temp = train_test_split(
-        X_data, y_data, test_size=0.4, random_state=21, stratify=y_data
+        X_data, y_data, test_size=0.2, random_state=21, stratify=y_data
     )
 
     X_val, X_test, y_val, y_test = train_test_split(
