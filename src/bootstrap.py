@@ -1,147 +1,138 @@
 import numpy as np
 import os
 import sys
+import glob
 from typing import Tuple
 
-from .training_pipeline import run_training_pipeline, load_preprocessed_data
+from .training_pipeline import run_training_pipeline
 from .face_detector import FaceDetector
 
-"""-------------------------------Funções Auxiliáres---------------------------------------------"""
 
-# Carrega dados pré-processados e treina o modelo v1
-def _step_1_train_v1(
-    data_path: str, window_size: tuple, input_size: int,
-    model_path: str, learn_rate: float, epochs: int, batch_size: int
-) -> Tuple[np.ndarray, np.ndarray]:
+# Treinar modelo 1
+def _train_v1(data_path_v1, model_v1_path, window_size, input_size, learn_rate, epochs, batch_size):
+    print("ETAPA 1: Treinando o Modelo 1")
     
-    print("--- ETAPA 1: Preparando e Treinando o Modelo v1 ---")
+    if os.path.exists(model_v1_path):
+        print(f"Modelo v1 já existe em '{model_v1_path}'. Pulando treino.")
+        return
+
+    print(f"Iniciando treinamento do modelo v1 com dados de '{data_path_v1}'...")
     
-    X_v1, y_v1, _ = load_preprocessed_data(data_path, window_size)
-
-    print(f"\nIniciando treinamento do modelo v1 com {len(X_v1)} amostras ...")
-
     run_training_pipeline(
-        X_data=X_v1,
-        y_data=y_v1,
+        data_path_base=data_path_v1,
+        window_size=window_size,
         input_size=input_size,
-        model_save_path=model_path,
+        model_save_path=model_v1_path,
         learning_rate=learn_rate,
         epochs=epochs,
         batch_size=batch_size
     )
 
-    print("--- Modelo v1 treinado com sucesso! ---")
-    
-    face_samples_processed = X_v1[y_v1 == 1]
-    non_face_samples_processed = X_v1[y_v1 == 0]
-    
-    return face_samples_processed, non_face_samples_processed
+    print("Modelo 1 treinado com sucesso!")
 
-# Carrega dados de mineração e encontra hard negatives
-def _step_2_mine_hard_negatives(
-    data_path_mining: str, window_size: tuple, model_v1_path: str,
-    hard_negative_threshold: float
-) -> np.ndarray:
-    
-    print("\n--- ETAPA 2: Iniciando Mineração de Hard Negatives ---")
-    
-    X_mining, y_mining, _ = load_preprocessed_data(data_path_mining, window_size)
-    non_faces_for_mining = X_mining[y_mining == 0]
-    
-    if non_faces_for_mining.size == 0:
-        raise RuntimeError("Mineração da Etapa 2 falhou: Nenhuma não-face encontrada.")
 
-    print(f"Carregando modelo v1 ({model_v1_path}) para encontrar falsos positivos ...")
+# Minerar Hard Negatives
+def _mine_hard_negatives(base_paths_for_mining, model_v1_path, hard_negative_threshold):
+    print("\nETAPA 2: Iniciando Mineração de Hard Negatives (Automática)")
 
+    print(f"Carregando modelo 1 ({model_v1_path}) para encontrar falsos positivos...")
     detector_v1 = FaceDetector(model_path=model_v1_path)
 
-    print(f"Avaliando {len(non_faces_for_mining)} amostras de não-face ...")
-
-    scores = detector_v1.predict_processed_patches(non_faces_for_mining)
-    hard_negatives = non_faces_for_mining[scores > hard_negative_threshold]
-
-    if len(hard_negatives) == 0:
-        raise RuntimeError("Mineração da Etapa 2 falhou: Nenhum hard negative encontrado.")
-
-    print(f"--- Mineração concluída! Encontrados {len(hard_negatives)} hard negatives. ---")
-
-    return hard_negatives
-
-# Combina dados 1D (originais + hard negatives) e treina o v2
-def _step_3_train_v2(
-    base_face_samples: np.ndarray, base_non_face_samples: np.ndarray, 
-    hard_negatives: np.ndarray,
-    input_size: int, model_path: str, learn_rate: float, 
-    epochs: int, batch_size: int
-):
-    
-    print("\n--- ETAPA 3: Preparando e Treinando o Modelo v2 (Enriquecido) ---")
-
-    enhanced_non_faces = np.concatenate((base_non_face_samples, hard_negatives))
-    face_samples_v2 = base_face_samples
-
-    X_v2 = np.concatenate((face_samples_v2, enhanced_non_faces))
-    y_v2 = np.concatenate((np.ones(len(face_samples_v2)), np.zeros(len(enhanced_non_faces))))
-
-    print(f"Dataset v2 criado com {len(face_samples_v2)} faces e {len(enhanced_non_faces)} não-faces.")
-    print(f"Iniciando treinamento do modelo v2 com {len(X_v2)} amostras ...")
-    
-    run_training_pipeline(
-        X_data=X_v2, y_data=y_v2, input_size=input_size,
-        model_save_path=model_path, learning_rate=learn_rate,
-        epochs=epochs, batch_size=batch_size
+    hard_negatives = detector_v1.mine_hard_negatives_from_dataset(
+        base_paths_list=base_paths_for_mining,
+        confidence_threshold=hard_negative_threshold
     )
 
-    print("--- Modelo v2 treinado com sucesso! ---")
+    if hard_negatives.size == 0:
+        print("AVISO: Mineração da Etapa 2 concluída, mas nenhum hard negative foi encontrado.")
+        return np.array([])
 
-"""--------------------------------------------------------------------------------------------------"""
+    print(f"Mineração concluída! Encontrados {len(hard_negatives)} hard negatives.")
+    return hard_negatives
 
-# Orquestra o pipeline de bootstrapping
+
+# Salva os dados 2 
+def _save_v2_data(data_path_v1, hard_negatives, data_path_v2, sample_to_faces=True):
+    print("\nETAPA 3: Preparando e Salvando Dataset 2 (com amostragem)")
+
+    try:
+        base_face_samples = np.load(f"{data_path_v1}_face.npy")
+    except FileNotFoundError:
+        print(f"Erro: Não foi possível carregar dados 1 (faces) de {data_path_v1}")
+        raise
+
+    num_faces = len(base_face_samples)
+    num_hard = len(hard_negatives)
+    print(f"Dataset base: {num_faces} rostos.")
+    print(f"Minerados: {num_hard} hard negatives.")
+
+    final_non_faces = hard_negatives
+
+    if sample_to_faces:
+        print(f"Amostrando {num_hard} HNM para igualar as {num_faces} faces (proporção 1:1)...")
+        if num_hard < num_faces:
+            print(f"Aviso: Menos HNM ({num_hard}) do que faces ({num_faces}). Usando todos os HNM.")
+        else:
+            # Seleciona aleatoriamente 'num_faces' índices dos hard negatives
+            indices = np.random.permutation(num_hard)
+            final_non_faces = hard_negatives[indices[:num_faces]]
+            print(f"Amostragem HNM concluída: {len(final_non_faces)} amostras selecionadas.")
+    else:
+        print("Usando todos os HNM encontrados (sem amostragem).")
+
+    # Salvar o novo dataset V2 em disco
+    os.makedirs(os.path.dirname(data_path_v2), exist_ok=True)
+    np.save(f"{data_path_v2}_face.npy", base_face_samples)
+    np.save(f"{data_path_v2}_non_face.npy", final_non_faces)
+    
+    print(f"Dataset 2 salvo com sucesso em '{data_path_v2}_[...]'.")
+    print(f"Total: {len(base_face_samples)} rostos, {len(final_non_faces)} não-rostos.")
+
+
 def run_bootstrap_process(
-    data_path_v1: str, data_path_mining: str,
-    model_v1_path: str, model_v2_path: str,
-    window_size: tuple, input_size: int,
-    learn_rate: float, epochs: int, batch_size: int,
-    hard_negative_threshold: float
+    data_path_v1,         
+    base_paths_for_mining,    
+    data_path_v2,         
+    model_v1_path,        
+    window_size,
+    input_size,
+    learn_rate_v1,
+    epochs_v1,
+    batch_size,
+    hard_negative_threshold,
+    sample_hnm_to_faces=True
 ):
     
     try:
-
-        if os.path.exists(model_v1_path):
-            # O modelo v1 JÁ EXISTE. Pule o treino.
-            print(f"Modelo v1 encontrado em '{model_v1_path}'. Pulando Etapa 1 (Treino).")
-            
-            print("Carregando dados v1 do disco para a Etapa 3 ...")
-
-            X_v1, y_v1, _ = load_preprocessed_data(data_path_v1, window_size)
-            face_v1_proc = X_v1[y_v1 == 1]
-            non_face_v1_proc = X_v1[y_v1 == 0]
-            
-        else:
-            # O modelo v1 NÃO EXISTE. Execute o treino.
-            face_v1_proc, non_face_v1_proc = _step_1_train_v1(
-                data_path=data_path_v1, window_size=window_size, 
-                input_size=input_size, model_path=model_v1_path,
-                learn_rate=learn_rate, epochs=epochs, batch_size=batch_size
-            )
+        # Treinar o modelo 1
+        _train_v1(
+            data_path_v1=data_path_v1, model_v1_path=model_v1_path,
+            window_size=window_size, input_size=input_size,
+            learn_rate=learn_rate_v1, epochs=epochs_v1, batch_size=batch_size
+        )
         
-        hard_negatives_proc = _step_2_mine_hard_negatives(
-            data_path_mining=data_path_mining, window_size=window_size,
-            model_v1_path=model_v1_path, # Usa o v1 (treinado ou carregado)
+        # Minerar
+        hard_negatives_proc = _mine_hard_negatives(
+            base_paths_for_mining=base_paths_for_mining,
+            model_v1_path=model_v1_path,
             hard_negative_threshold=hard_negative_threshold
         )
         
-        _step_3_train_v2(
-            base_face_samples=face_v1_proc, 
-            base_non_face_samples=non_face_v1_proc, 
+        # Salvar
+        _save_v2_data(
+            data_path_v1=data_path_v1,
             hard_negatives=hard_negatives_proc,
-            input_size=input_size, model_path=model_v2_path,
-            learn_rate=learn_rate, epochs=epochs, batch_size=batch_size
+            data_path_v2=data_path_v2,
+            sample_to_faces=sample_hnm_to_faces
         )
         
-        print("\nProcesso de Bootstrap concluído com sucesso.")
+        print(f"\nProcesso de Bootstrap (mineração e salvamento) concluído.")
+        print(f"Modelo 1 treinado: {model_v1_path}")
+        print(f"Dados 2 salvos em: {data_path_v2}")
+        print(f"\nPróximo passo: Treine o modelo 2 com 'python main.py train --config 2'")
         
     except Exception as e:
         print(f"\n--- ERRO NO PROCESSO DE BOOTSTRAP ---")
         print(f"Erro: {e}")
-        raise e
+        import traceback
+        traceback.print_exc()

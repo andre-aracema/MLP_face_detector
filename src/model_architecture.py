@@ -1,12 +1,11 @@
 import tensorflow as tf
-from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.optimizers import Adam
 
 
 # Constrói a Arquitetura de um modelo MLP
-def build_mlp_architecture(input_shape: tuple) -> Model:
-
+def build_mlp_architecture(input_shape):
     print(f"Construindo modelo MLP com entradas: {input_shape}")
 
     model = Sequential([
@@ -19,8 +18,7 @@ def build_mlp_architecture(input_shape: tuple) -> Model:
     return model
 
 # Compila um modelo Keras, preparando-o para o treinamento
-def compile_model(model_to_compile: Model, learning_rate: float) -> Model:
-
+def compile_model(model_to_compile, learning_rate):
     print(f"Compilando modelo com taxa de aprendizado: {learning_rate}")
 
     model_to_compile.compile(
@@ -30,6 +28,3 @@ def compile_model(model_to_compile: Model, learning_rate: float) -> Model:
     )
 
     return model_to_compile
-
-
-# Estudar otimizadores
