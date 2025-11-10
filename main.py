@@ -63,7 +63,7 @@ def main():
                           help='Pré-processa dados "fáceis" (Versão 1).')
 
     # Comando 'train'
-    subparsers.add_parser('train', 
+    parser_train = subparsers.add_parser('train', 
                           help='Treina um modelo (Versão 1 ou Versão 2).')
 
     # Argumentos específicos que o comando 'train' aceita:
