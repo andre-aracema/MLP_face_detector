@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from .preprocessing import generate_data 
-from .model_architecture import build_mlp_architecture, compile_model
+from .model_architecture import build_mlp_architecture, build_robust_mlp_architecture, compile_model
 
 
 # Carregar apenas um lote de dados do disco usando "memory mapping" (mmap)
@@ -68,7 +68,7 @@ class FaceDataGenerator(tf.keras.utils.Sequence):
 # Chama 'generate_data' para criar e salvar amostras de rosto e não rosto em um arquivo .npy
 def preprocess_and_save_data(base_paths, num_samples, window_size, save_path_base):
     print("Começando o Pré processamento ...")
-    print(f"Gerando {num_samples} amostras e salvando em '{save_path_base}_[face/non_face].npy'")
+    print(f"Gerando amostras e salvando em '{save_path_base}_[face/non_face].npy'")
 
     generate_data(base_paths, num_samples, window_size, save_path=save_path_base)
 
@@ -146,7 +146,13 @@ def run_training_pipeline(data_path_base, window_size, input_size, model_save_pa
     )
 
     # Constroi e Compila
-    model = build_mlp_architecture(input_shape=(input_size,))
+    # Versão 2
+    if learning_rate < 0.0005: 
+        model = build_robust_mlp_architecture(input_shape=(input_size,))
+    # Versão 1
+    else: 
+        model = build_mlp_architecture(input_shape=(input_size,))
+
     model = compile_model(model, learning_rate=learning_rate)
     model.summary()
 

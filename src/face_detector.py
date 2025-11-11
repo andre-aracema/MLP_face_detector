@@ -209,7 +209,7 @@ class FaceDetector:
         return patches_np[failed_indices], np.array(valid_coords)[failed_indices]
 
     # Miniração automática
-    def mine_hard_negatives_from_dataset(self, base_paths_list, confidence_threshold=0.8):
+    def mine_hard_negatives_from_dataset(self, base_paths_list, target_count, confidence_threshold=0.8):
         all_hard_negatives = []
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         
@@ -222,7 +222,7 @@ class FaceDetector:
             print("Verifique se a função '_load_annotations' está em 'src/preprocessing.py'.")
             raise e
 
-        MAX_IMAGES_TO_MINE = 150000
+        MAX_IMAGES_TO_MINE = 300000
         
         if len(all_annotations) > MAX_IMAGES_TO_MINE:
             print(f"AVISO: O dataset é muito grande. Minerando um subconjunto aleatório de {MAX_IMAGES_TO_MINE} imagens...")
@@ -236,7 +236,8 @@ class FaceDetector:
                 gt_bbox = info['bbox']
                 
                 image_color = cv2.imread(info['image_path'])
-                if image_color is None: continue
+                if image_color is None:
+                    continue
                 
                 gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
                 gray_norm = clahe.apply(gray_image)
@@ -258,9 +259,18 @@ class FaceDetector:
 
             except Exception:
                 continue 
+
+            if len(all_hard_negatives) >= target_count:
+                print(f"\nMeta de {target_count} HNM atingida. Parando a mineração.")
+                break
         
         if not all_hard_negatives:
             return np.array([])
+
+        if len(all_hard_negatives) > target_count:
+            final_hnm_list = all_hard_negatives[:target_count]
+        else:
+            final_hnm_list = all_hard_negatives
             
         # Concatena todos os arrays de patches em um único grande array
-        return np.array(all_hard_negatives)
+        return np.array(final_hnm_list)

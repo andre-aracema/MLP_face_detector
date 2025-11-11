@@ -80,14 +80,17 @@ def _process_face_sample(image_gray, face_bbox, clahe, window_size):
     return _get_face_augmentations(face_normalized)
 
 # Gera múltiplas amostras de não-face de uma imagem
-def _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold, clahe, max_attempts= 10):
+def _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold, clahe, target_count, max_attempts= 20):
     samples = []
     img_h, img_w = image_gray.shape
     
     if not (img_w >= window_size[0] and img_h >= window_size[1]):
         return []
 
-    for _ in range(max_attempts):
+    attempts = 0
+    # Continua até atingir o alvo ou o máximo de tentativas
+    while len(samples) < target_count and attempts < max_attempts:
+        attempts += 1
         rand_x1 = random.randint(0, img_w - window_size[0])
         rand_y1 = random.randint(0, img_h - window_size[1])
         random_box = [rand_x1, rand_y1, rand_x1 + window_size[0], rand_y1 + window_size[1]]
@@ -111,7 +114,9 @@ def _process_image_worker(image_info, window_size, iou_threshold_neg):
         face_bbox = image_info['bbox']
         
         face_samples = _process_face_sample(image_gray, face_bbox, clahe, window_size)
-        non_face_samples = _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold_neg, clahe)
+        num_faces_generated = len(face_samples)
+
+        non_face_samples = _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold_neg, clahe, target_count=num_faces_generated)
 
         return face_samples, non_face_samples
         
@@ -158,27 +163,18 @@ def _select_samples_to_process(all_info, num_samples):
 
 #Agrega os resultados paralelos e salva em disco
 def _aggregate_and_save_results(results, save_path):
-    face_samples, non_face_samples = [], []
+    face_samples_list, non_face_samples_list = [], []
 
     for local_faces, local_non_faces in results:
-        face_samples.extend(local_faces)
-        non_face_samples.extend(local_non_faces)
+        if local_faces:
+            face_samples_list.extend(local_faces)
+        if local_non_faces:
+            non_face_samples_list.extend(local_non_faces)
 
-    num_faces = len(face_samples)
-    num_non_faces = len(non_face_samples)
-
-    if num_non_faces > num_faces and num_faces > 0:
-        print(f"Balanceando dataset: Reduzindo {num_non_faces} não-faces para {num_faces} (1:1)...")
-        random.shuffle(non_face_samples)
-        non_face_samples = non_face_samples[:num_faces]
-    
-    elif num_faces > num_non_faces and num_non_faces > 0:
-        print(f"Balanceando dataset: Reduzindo {num_faces} faces para {num_non_faces} (1:1)...")
-        random.shuffle(face_samples)
-        face_samples = face_samples[:num_non_faces]
+    print(f"Agregação concluída. Amostras válidas encontradas: {len(face_samples_list)} faces, {len(non_face_samples_list)} não-faces.")
         
-    face_array = np.array(face_samples)
-    non_face_array = np.array(non_face_samples)
+    face_array = np.array(face_samples_list)
+    non_face_array = np.array(non_face_samples_list)
     
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
