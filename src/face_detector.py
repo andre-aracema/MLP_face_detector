@@ -11,10 +11,10 @@ from .preprocessing import _load_annotations, calculate_iou
 class FaceDetector:
     def __init__(self, model_path,
                  window_size= (32, 32),
-                 confidence_threshold= 0.995,
+                 confidence_threshold= 0.70,
                  scale_factor= 0.9,
                  stride= 4,
-                 iou_nms_threshold= 0.01,
+                 iou_nms_threshold= 0.3,
                  variance_threshold= 1200.0,
                  edge_density_threshold= 0.15):
 
