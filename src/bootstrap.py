@@ -9,7 +9,7 @@ from .face_detector import FaceDetector
 
 
 # Treinar modelo 1
-def _train_v1(data_path_v1, model_v1_path, window_size, input_size, learn_rate, epochs, batch_size):
+def _train_v1(data_path_v1, model_v1_path, window_size, input_size, learn_rate, epochs, batch_size, weight_decay):
     print("ETAPA 1: Treinando o Modelo 1")
     
     if os.path.exists(model_v1_path):
@@ -25,7 +25,8 @@ def _train_v1(data_path_v1, model_v1_path, window_size, input_size, learn_rate, 
         model_save_path=model_v1_path,
         learning_rate=learn_rate,
         epochs=epochs,
-        batch_size=batch_size
+        batch_size=batch_size,
+        weight_decay=weight_decay
     )
 
     print("Modelo 1 treinado com sucesso!")
@@ -100,7 +101,8 @@ def run_bootstrap_process(
     learn_rate_v1,
     epochs_v1,
     batch_size,
-    hard_negative_threshold
+    hard_negative_threshold,
+    weight_decay_v1
 ):
     
     try:
@@ -108,7 +110,8 @@ def run_bootstrap_process(
         _train_v1(
             data_path_v1=data_path_v1, model_v1_path=model_v1_path,
             window_size=window_size, input_size=input_size,
-            learn_rate=learn_rate_v1, epochs=epochs_v1, batch_size=batch_size
+            learn_rate=learn_rate_v1, epochs=epochs_v1, batch_size=batch_size,
+            weight_decay=weight_decay_v1
         )
         
         # Minerar
