@@ -3,6 +3,7 @@ data/
 
 # Ignorar a pasta de modelos treinados (são artefatos, não código-fonte)
 models/
+models_v1/
 
 # Ignorar ambientes virtuais do Python
 .venv/
