@@ -1,12 +1,37 @@
 import numpy as np
 import os
 import tensorflow as tf
+import math
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, LearningRateScheduler
 
 from .preprocessing import generate_data 
 from .model_architecture import build_mlp_architecture, build_robust_mlp_architecture, compile_model
 
+
+# Cria o scheduler com Warmup Linear e Cosine Decay
+def create_cosine_scheduler(initial_lr, min_lr, total_epochs, warmup_epochs):
+    
+    def scheduler(epoch, lr):
+        if epoch < warmup_epochs:
+            # Fase de Warmup: Aumenta LR linearmente
+            new_lr = initial_lr * (epoch + 1) / warmup_epochs
+            return new_lr
+        else:
+            # Fase de Cosine Decay
+            # Epoch atual na fase de decaimento (começa do 0)
+            current_decay_epoch = epoch - warmup_epochs
+            # Total de épocas para decair
+            decay_epochs = total_epochs - warmup_epochs
+            
+            # Fórmula do Cosine Decay
+            cosine_val = (1 + math.cos(current_decay_epoch * math.pi / decay_epochs)) / 2
+            
+            # η_t = η_min + 0.5 * (η_max - η_min) * (1 + cos(...))
+            new_lr = min_lr + (initial_lr - min_lr) * cosine_val
+            return new_lr
+            
+    return scheduler
 
 # Carregar apenas um lote de dados do disco usando "memory mapping" (mmap)
 class FaceDataGenerator(tf.keras.utils.Sequence):
@@ -102,7 +127,7 @@ def load_preprocessed_data(load_path_base, window_size):
     return X_processed, y, input_size
 
 # Executa o pipeline para dividir, compilar, treinar e avaliar o modelo.
-def run_training_pipeline(data_path_base, window_size, input_size, model_save_path, learning_rate, epochs, batch_size, model_version='v1'):
+def run_training_pipeline(data_path_base, window_size, input_size, model_save_path, learning_rate, epochs, batch_size, model_version='v1', weight_decay=1e-4):
     print("Dividindo os dados em dados de treino, validação e teste ...")
 
     # Mapeia os dados para pegar os tamanhos
@@ -146,14 +171,12 @@ def run_training_pipeline(data_path_base, window_size, input_size, model_save_pa
     )
 
     # Constroi e Compila
-    # v2 ou v3
     if model_version == 'v2' or model_version == 'v3':
         model = build_robust_mlp_architecture(input_shape=(input_size,))
-    # v1  usa o modelo simples
     else: 
         model = build_mlp_architecture(input_shape=(input_size,))
 
-    model = compile_model(model, learning_rate=learning_rate)
+    model = compile_model(model, learning_rate=learning_rate, weight_decay=weight_decay)
     model.summary()
 
     # Callbacks
@@ -163,6 +186,25 @@ def run_training_pipeline(data_path_base, window_size, input_size, model_save_pa
     model_checkpoint = ModelCheckpoint(
         model_save_path, monitor='val_loss', save_best_only=True, verbose=1
     )
+
+    #Configuração do Learning Rate Scheduler
+    # 10% das épocas para Warmup
+    warmup_epochs = int(epochs * 0.1) 
+    # Decai até 1% da taxa de aprendizado inicial
+    min_lr = learning_rate * 0.01
+
+    print(f"Configurando Scheduler: {epochs} épocas, {warmup_epochs} épocas de warmup.")
+    print(f"LR Inicial: {learning_rate:.6f}, LR Final (mínima): {min_lr:.6f}")
+
+    lr_scheduler_fn = create_cosine_scheduler(
+        initial_lr=learning_rate, 
+        min_lr=min_lr,
+        total_epochs=epochs,
+        warmup_epochs=warmup_epochs
+    )
+    
+    # Novo callback
+    lr_scheduler_callback = LearningRateScheduler(lr_scheduler_fn, verbose=1)
     
     # Treinamento
     print("\nIniciando treinamento do modelo (com Gerador)...")
