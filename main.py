@@ -3,6 +3,7 @@ Comandos:
   - preprocess: Gera os arquivos .npy (face/non-face) do dataset.
   - train:      Treina o modelo MLP usando os dados .npy (sem estourar a RAM).
   - bootstrap:  Treina utilizando hard negatives.
+  - mix_data:   Junta os dados da mineração (hard) com os fáceis.
   - detect:     Detecta faces em uma imagem usando o modelo treinado.
 """
 
@@ -13,6 +14,7 @@ import os
 
 from src.face_detector import FaceDetector
 from src.bootstrap import run_bootstrap_process
+from src.data_mixer import create_mixed_dataset
 from src.training_pipeline import preprocess_and_save_data, run_training_pipeline     
 
 
@@ -30,13 +32,21 @@ LEARNING_RATE_1 = 0.001   # Adam
 EPOCHS_1 = 50
 
 
-# --------------- Configs de Bootstrap ------------------------------------
+# --------------- Configs de Bootstrap ---------------------------------------
 
 DATA_PATH_2 = 'data/preprocessed/v2_hard_data'
 MODEL_PATH_2 = 'models/detector_v2_final.keras'
 LEARNING_RATE_2 = 0.0001
 EPOCHS_2 = 40
 HARD_NEGATIVE_THRESHOLD = 0.8
+
+
+# --------------- Configs de Mixagem (V3) ------------------------------------
+
+DATA_PATH_3 = 'data/preprocessed/v3_mixed_data'
+MODEL_PATH_3 = 'models/detector_v3_mixed.keras'
+LEARNING_RATE_3 = 0.0001 
+EPOCHS_3 = 50           
 
 
 # -------------- Hiperparâmetros ----------------------------------------------
@@ -62,15 +72,19 @@ def main():
 
     # Comando 'train'
     parser_train = subparsers.add_parser('train', 
-                          help='Treina um modelo (Versão 1 ou Versão 2).')
+                          help='Treina um modelo (Versão 1 (simples), Versão 2 (bootstrap) e Versão 3 (misto)).')
 
     # Argumentos específicos que o comando 'train' aceita:
-    parser_train.add_argument('--config', type=str, default='v1', choices=['v1', 'v2'],
+    parser_train.add_argument('--config', type=str, default='v1', choices=['v1', 'v2', 'v3'],
                               help="Configuração de treino: 'v1' (fácil) ou 'v2' (difícil/HNM). Padrão: v1")
 
     # Comando 'bootstrap'
     subparsers.add_parser('bootstrap',
                           help='Executa o pipeline de Hard Negative Mining')
+
+    # Comando 'mix_data'
+    subparsers.add_parser('mix_data',
+                          help='Cria um dataset (v3) misturando não-faces fáceis (v1) e difíceis (v2).')
 
     # Comando 'detect'
     parser_detect = subparsers.add_parser('detect', 
@@ -106,19 +120,26 @@ def main():
                 model_path = MODEL_PATH_1
                 lr = LEARNING_RATE_1
                 epochs = EPOCHS_1
-            else: 
+            elif args.config == 'v2': 
                 data_path = DATA_PATH_2
                 model_path = MODEL_PATH_2
                 lr = LEARNING_RATE_2
                 epochs = EPOCHS_2
+            else:
+                data_path = DATA_PATH_3
+                model_path = MODEL_PATH_3
+                lr = LEARNING_RATE_3
+                epochs = EPOCHS_3
             
             data_file_check = f"{data_path}_face.npy"
             if not os.path.exists(data_file_check):
                 print(f"Erro: Dados 1 não encontrados em {data_file_check}. Execute:")
                 if args.config == 'v1':
                     print(f"Execute: python {sys.argv[0]} preprocess")
-                else:
+                elif args.config == 'v2':
                     print(f"Execute: python {sys.argv[0]} bootstrap")
+                else:
+                    print(f"Execute: python {sys.argv[0]} mix_data")
                 sys.exit(1)
                 
             run_training_pipeline(
@@ -152,6 +173,27 @@ def main():
                 epochs_v1=EPOCHS_1,
                 batch_size=BATCH_SIZE,
                 hard_negative_threshold=HARD_NEGATIVE_THRESHOLD
+            )
+
+        elif args.command == 'mix_data':
+            print("################### MODO: MIXAGEM DE DADOS (V3) ###################")
+            check_v1_face = f"{DATA_PATH_1}_face.npy"
+            check_v1_non = f"{DATA_PATH_1}_non_face.npy"
+            check_v2_non = f"{DATA_PATH_2}_non_face.npy"
+            
+            if not (os.path.exists(check_v1_face) and os.path.exists(check_v1_non) and os.path.exists(check_v2_non)):
+                 print(f"Erro: Dados v1 ou v2 não encontrados.")
+                 print("Verifique se os arquivos abaixo existem:")
+                 print(f"  - {check_v1_face}")
+                 print(f"  - {check_v1_non}")
+                 print(f"  - {check_v2_non}")
+                 print(f"\nExecute 'python {sys.argv[0]} preprocess' e 'python {sys.argv[0]} bootstrap' primeiro.")
+                 sys.exit(1)
+            
+            create_mixed_dataset(
+                data_path_v1=DATA_PATH_1,
+                data_path_v2=DATA_PATH_2,
+                save_path_base=DATA_PATH_3
             )
 
         elif args.command == 'detect':
