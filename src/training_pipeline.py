@@ -212,7 +212,7 @@ def run_training_pipeline(data_path_base, window_size, input_size, model_save_pa
         train_generator,
         epochs=epochs,
         validation_data=val_generator,
-        callbacks=[early_stopping, model_checkpoint]
+        callbacks=[early_stopping, model_checkpoint, lr_scheduler_callback]
     )
     print("Treino completo.")
 
