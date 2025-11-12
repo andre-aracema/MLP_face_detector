@@ -29,8 +29,9 @@ BASE_PATHS = ['data/Derived_YTFaces_160x160/Only_famous_high_quality',
 NUM_SAMPLES = 1000000
 DATA_PATH_1 = 'data/preprocessed/v1_easy_data' 
 MODEL_PATH_1 = 'models/detector_v1_easy.keras'
-LEARNING_RATE_1 = 0.001   # Adam
+LEARNING_RATE_1 = 0.001 
 EPOCHS_1 = 50
+WEIGHT_DECAY_1 = 1e-4
 
 
 # --------------- Configs de Bootstrap ---------------------------------------
@@ -40,6 +41,7 @@ MODEL_PATH_2 = 'models/detector_v2_final.keras'
 LEARNING_RATE_2 = 0.0001
 EPOCHS_2 = 40
 HARD_NEGATIVE_THRESHOLD = 0.8
+WEIGHT_DECAY_2 = 1e-4
 
 
 # --------------- Configs de Mixagem (V3) ------------------------------------
@@ -47,7 +49,8 @@ HARD_NEGATIVE_THRESHOLD = 0.8
 DATA_PATH_3 = 'data/preprocessed/v3_mixed_data'
 MODEL_PATH_3 = 'models/detector_v3_mixed.keras'
 LEARNING_RATE_3 = 0.0001 
-EPOCHS_3 = 50           
+EPOCHS_3 = 50      
+WEIGHT_DECAY_3 = 1e-4     
 
 
 # -------------- Hiperparâmetros ----------------------------------------------
@@ -78,16 +81,19 @@ def do_train(config='v1'):
         model_path = MODEL_PATH_1
         lr = LEARNING_RATE_1
         epochs = EPOCHS_1
+        wd = WEIGHT_DECAY_1
     elif config == 'v2': 
         data_path = DATA_PATH_2
         model_path = MODEL_PATH_2
         lr = LEARNING_RATE_2
         epochs = EPOCHS_2
+        wd = WEIGHT_DECAY_2
     else: # v3
         data_path = DATA_PATH_3
         model_path = MODEL_PATH_3
         lr = LEARNING_RATE_3
         epochs = EPOCHS_3
+        wd = WEIGHT_DECAY_3
     
     data_file_check = f"{data_path}_face.npy"
     if not os.path.exists(data_file_check):
@@ -108,7 +114,8 @@ def do_train(config='v1'):
         learning_rate=lr,    
         epochs=epochs,
         batch_size=BATCH_SIZE,
-        model_version=config
+        model_version=config,
+        weight_decay=wd
     )
     print(f"Treinamento '{config}' concluído. Modelo salvo em: {model_path}")
 
@@ -130,7 +137,8 @@ def do_bootstrap():
         learn_rate_v1=LEARNING_RATE_1,
         epochs_v1=EPOCHS_1,
         batch_size=BATCH_SIZE,
-        hard_negative_threshold=HARD_NEGATIVE_THRESHOLD
+        hard_negative_threshold=HARD_NEGATIVE_THRESHOLD,
+        weight_decay_v1=WEIGHT_DECAY_1
     )
 
 def do_mix_data():
