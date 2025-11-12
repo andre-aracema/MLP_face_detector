@@ -102,7 +102,7 @@ def load_preprocessed_data(load_path_base, window_size):
     return X_processed, y, input_size
 
 # Executa o pipeline para dividir, compilar, treinar e avaliar o modelo.
-def run_training_pipeline(data_path_base, window_size, input_size, model_save_path, learning_rate, epochs, batch_size):
+def run_training_pipeline(data_path_base, window_size, input_size, model_save_path, learning_rate, epochs, batch_size, model_version='v1'):
     print("Dividindo os dados em dados de treino, validação e teste ...")
 
     # Mapeia os dados para pegar os tamanhos
@@ -146,10 +146,10 @@ def run_training_pipeline(data_path_base, window_size, input_size, model_save_pa
     )
 
     # Constroi e Compila
-    # Versão 2
-    if learning_rate < 0.0005: 
+    # v2 ou v3
+    if model_version == 'v2' or model_version == 'v3':
         model = build_robust_mlp_architecture(input_shape=(input_size,))
-    # Versão 1
+    # v1  usa o modelo simples
     else: 
         model = build_mlp_architecture(input_shape=(input_size,))
 

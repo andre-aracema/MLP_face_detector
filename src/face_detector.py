@@ -19,6 +19,7 @@ class FaceDetector:
                  edge_density_threshold= 0.15):
 
         self.model: Model = load_model(model_path)
+        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         self.window_size = window_size
         self.confidence_threshold = confidence_threshold
         self.scale_factor = scale_factor
@@ -149,8 +150,10 @@ class FaceDetector:
     # Orquestra a pirâmide de imagens e o escaneamento em cada escala
     def _sliding_window_multiscale(self, image):
         all_detections = []
+
+        image_norm = self.clahe.apply(image)
         
-        for image_scaled, scale in self._build_image_pyramid(image):
+        for image_scaled, scale in self._build_image_pyramid(image_norm):
             detections_at_scale = self._scan_image_scale(image_scaled, scale)
             all_detections.extend(detections_at_scale)
             
@@ -178,7 +181,7 @@ class FaceDetector:
     """------------------------------- Bootstrap ------------------------------"""
 
     # Escaneia uma imagem e coleta os patches (e suas coordenadas) que o modelo V1 classificou erroneamente como 'rosto'.
-    def _scan_and_collect_patches_with_coords(self, image_scaled):
+    def _scan_and_collect_patches_with_coords(self, image_scaled, confidence_threshold=0.8):
         # Retorna patches e suas coordenadas
         h_win, w_win = self.window_size
         valid_patches = []
@@ -201,9 +204,7 @@ class FaceDetector:
         
         scores = self.model.predict(patches_processed, batch_size=512, verbose=0).flatten()
         
-        # Este limiar é usado apenas para mineração
-        MINING_CONFIDENCE = 0.8 
-        failed_indices = np.where(scores >= MINING_CONFIDENCE)[0]
+        failed_indices = np.where(scores >= confidence_threshold)[0]
         
         # Retorna patches e coords APENAS dos que falharam
         return patches_np[failed_indices], np.array(valid_coords)[failed_indices]
@@ -211,7 +212,6 @@ class FaceDetector:
     # Miniração automática
     def mine_hard_negatives_from_dataset(self, base_paths_list, target_count, confidence_threshold=0.8):
         all_hard_negatives = []
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         
         # Carrega todas as anotações do dataset de treino
         print("Carregando anotações do dataset para mineração...")
@@ -240,10 +240,13 @@ class FaceDetector:
                     continue
                 
                 gray_image = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
-                gray_norm = clahe.apply(gray_image)
+                gray_norm = self.clahe.apply(gray_image)
 
                 # Escaneia a imagem e coleta patches que o 1 acha que são rostos
-                failed_patches, failed_coords = self._scan_and_collect_patches_with_coords(gray_norm)
+                failed_patches, failed_coords = self._scan_and_collect_patches_with_coords(
+                    gray_norm, 
+                    confidence_threshold=confidence_threshold
+                )
 
                 if failed_patches.size == 0:
                     continue

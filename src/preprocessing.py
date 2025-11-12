@@ -67,22 +67,21 @@ def _get_face_augmentations(normalized_face):
     ]
 
 # Extrai, redimensiona e processa uma única amostra de face
-def _process_face_sample(image_gray, face_bbox, clahe, window_size):
+def _process_face_sample(image_gray_normalized, face_bbox, window_size):
     x1, y1, x2, y2 = face_bbox
-    face_crop = image_gray[y1:y2, x1:x2]
+    face_crop = image_gray_normalized[y1:y2, x1:x2]
     
     if face_crop.size == 0:
         return []
 
     resized_face = cv2.resize(face_crop, window_size, interpolation=cv2.INTER_AREA)
-    face_normalized = clahe.apply(resized_face)
 
-    return _get_face_augmentations(face_normalized)
+    return _get_face_augmentations(resized_face)
 
 # Gera múltiplas amostras de não-face de uma imagem
-def _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold, clahe, target_count, max_attempts= 20):
+def _generate_non_face_samples(image_gray_normalized, face_bbox, window_size, iou_threshold, target_count, max_attempts= 20):
     samples = []
-    img_h, img_w = image_gray.shape
+    img_h, img_w = image_gray_normalized.shape 
     
     if not (img_w >= window_size[0] and img_h >= window_size[1]):
         return []
@@ -96,8 +95,8 @@ def _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold
         random_box = [rand_x1, rand_y1, rand_x1 + window_size[0], rand_y1 + window_size[1]]
 
         if calculate_iou(random_box, face_bbox) < iou_threshold:
-            crop = image_gray[random_box[1]:random_box[3], random_box[0]:random_box[2]]
-            samples.append(clahe.apply(crop))
+            crop = image_gray_normalized[random_box[1]:random_box[3], random_box[0]:random_box[2]]
+            samples.append(crop)
             
     return samples
 
@@ -112,11 +111,13 @@ def _process_image_worker(image_info, window_size, iou_threshold_neg):
 
         image_gray = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
         face_bbox = image_info['bbox']
+
+        image_norm = clahe.apply(image_gray)
         
-        face_samples = _process_face_sample(image_gray, face_bbox, clahe, window_size)
+        face_samples = _process_face_sample(image_norm, face_bbox, window_size)
         num_faces_generated = len(face_samples)
 
-        non_face_samples = _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold_neg, clahe, target_count=num_faces_generated)
+        non_face_samples = _generate_non_face_samples(image_norm, face_bbox, window_size, iou_threshold_neg, target_count=num_faces_generated)
 
         return face_samples, non_face_samples
         
@@ -161,7 +162,7 @@ def _select_samples_to_process(all_info, num_samples):
 
     return all_info[:num_to_process]
 
-#Agrega os resultados paralelos e salva em disco
+# Agrega os resultados paralelos e salva em disco
 def _aggregate_and_save_results(results, save_path):
     face_samples_list, non_face_samples_list = [], []
 

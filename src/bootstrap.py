@@ -78,14 +78,6 @@ def _save_v2_data(data_path_v1, hard_negatives, data_path_v2):
     if num_hard == 0:
         print("AVISO: Nenhum hard negative encontrado. O dataset 2 não será salvo.")
         return
-
-    print(f"Balanceando dataset... Selecionando {num_hard} rostos aleatórios (Undersampling).")
-
-    # Gera 'num_hard' índices aleatórios, sem repetição, do array de faces
-    face_indices = npr.choice(num_faces, num_hard, replace=False)
-
-    # Seleciona apenas as faces desses índices
-    final_face_samples = base_face_samples[face_indices]
     
     final_non_faces = hard_negatives
 

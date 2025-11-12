@@ -5,6 +5,7 @@ Comandos:
   - bootstrap:  Treina utilizando hard negatives.
   - mix_data:   Junta os dados da mineração (hard) com os fáceis.
   - detect:     Detecta faces em uma imagem usando o modelo treinado.
+  - run_all:    Executa o pipeline completo.
 """
 
 import cv2
@@ -15,7 +16,7 @@ import os
 from src.face_detector import FaceDetector
 from src.bootstrap import run_bootstrap_process
 from src.data_mixer import create_mixed_dataset
-from src.training_pipeline import preprocess_and_save_data, run_training_pipeline     
+from src.training_pipeline import preprocess_and_save_data, run_training_pipeline 
 
 
 
@@ -56,7 +57,128 @@ INPUT_SIZE = WINDOW_SIZE[0] * WINDOW_SIZE[1]
 BATCH_SIZE = 32
 
 DEFAULT_DETECTION_THRESHOLD = 0.6
-DEFAULT_MODEL_FOR_DETECT = MODEL_PATH_2
+DEFAULT_MODEL_FOR_DETECT = MODEL_PATH_3
+
+
+
+def do_preprocess():
+    print("################### MODO: PRÉ-PROCESSAMENTO ###################")
+    preprocess_and_save_data(
+        base_paths=BASE_PATHS,
+        num_samples=NUM_SAMPLES,
+        window_size=WINDOW_SIZE,
+        save_path_base=DATA_PATH_1
+    )
+    print("Pré-processamento concluído.")
+
+def do_train(config='v1'):
+    print(f"################### MODO: TREINAMENTO (Config: {config}) ###################")
+    if config == 'v1':
+        data_path = DATA_PATH_1
+        model_path = MODEL_PATH_1
+        lr = LEARNING_RATE_1
+        epochs = EPOCHS_1
+    elif config == 'v2': 
+        data_path = DATA_PATH_2
+        model_path = MODEL_PATH_2
+        lr = LEARNING_RATE_2
+        epochs = EPOCHS_2
+    else: # v3
+        data_path = DATA_PATH_3
+        model_path = MODEL_PATH_3
+        lr = LEARNING_RATE_3
+        epochs = EPOCHS_3
+    
+    data_file_check = f"{data_path}_face.npy"
+    if not os.path.exists(data_file_check):
+        print(f"Erro: Dados '{config}' não encontrados em {data_file_check}.")
+        if config == 'v1':
+            print(f"Execute: python {sys.argv[0]} preprocess")
+        elif config == 'v2':
+            print(f"Execute: python {sys.argv[0]} bootstrap")
+        else:
+            print(f"Execute: python {sys.argv[0]} mix_data")
+        sys.exit(1)
+        
+    run_training_pipeline(
+        data_path_base=data_path,
+        window_size=WINDOW_SIZE,
+        input_size=INPUT_SIZE,
+        model_save_path=model_path,
+        learning_rate=lr,    
+        epochs=epochs,
+        batch_size=BATCH_SIZE,
+        model_version=config
+    )
+    print(f"Treinamento '{config}' concluído. Modelo salvo em: {model_path}")
+
+def do_bootstrap():
+    print("################### MODO: BOOTSTRAP ###################")
+    data_file_check = f"{DATA_PATH_1}_face.npy"
+    if not os.path.exists(data_file_check):
+        print(f"Erro: Dados V1 não encontrados em {data_file_check}. Execute primeiro:")
+        print(f"python {sys.argv[0]} preprocess")
+        sys.exit(1)
+
+    run_bootstrap_process(
+        data_path_v1=DATA_PATH_1,
+        base_paths_for_mining=BASE_PATHS,
+        data_path_v2=DATA_PATH_2,
+        model_v1_path=MODEL_PATH_1,
+        window_size=WINDOW_SIZE,
+        input_size=INPUT_SIZE,
+        learn_rate_v1=LEARNING_RATE_1,
+        epochs_v1=EPOCHS_1,
+        batch_size=BATCH_SIZE,
+        hard_negative_threshold=HARD_NEGATIVE_THRESHOLD
+    )
+
+def do_mix_data():
+    print("################### MODO: MIXAGEM DE DADOS (V3) ###################")
+    check_v1_face = f"{DATA_PATH_1}_face.npy"
+    check_v1_non = f"{DATA_PATH_1}_non_face.npy"
+    check_v2_non = f"{DATA_PATH_2}_non_face.npy"
+    
+    if not (os.path.exists(check_v1_face) and os.path.exists(check_v1_non) and os.path.exists(check_v2_non)):
+         print(f"Erro: Dados v1 ou v2 não encontrados.")
+         print("Verifique se os arquivos abaixo existem:")
+         print(f"  - {check_v1_face}")
+         print(f"  - {check_v1_non}")
+         print(f"  - {check_v2_non}")
+         print(f"\nExecute 'python {sys.argv[0]} preprocess' e 'python {sys.argv[0]} bootstrap' primeiro.")
+         sys.exit(1)
+    
+    create_mixed_dataset(
+        data_path_v1=DATA_PATH_1,
+        data_path_v2=DATA_PATH_2,
+        save_path_base=DATA_PATH_3
+    )
+
+def do_detect(image_path, model_path, threshold):
+    print("################### MODO: DETECÇÃO ###################")
+    if not os.path.exists(model_path):
+        print(f"Erro: Modelo não encontrado em '{model_path}'.")
+        print(f"Execute 'python {sys.argv[0]} train --config v3' para treinar o modelo padrão.")
+        sys.exit(1)
+    
+    detector = FaceDetector(
+        model_path=model_path,
+        confidence_threshold=threshold
+    )
+    
+    # Roda a detecção na imagem fornecida
+    image_color, detections = detector.detect(image_path)
+
+    if image_color is not None:
+        print(f"Encontradas {len(detections)} faces.")
+        # Desenha as caixas nas imagens
+        image_with_boxes = FaceDetector.draw_boxes(image_color.copy(), detections)
+        # Mostra a imagem em uma janela do OpenCV
+        cv2.imshow("Faces Detectadas (Pressione qualquer tecla para sair)", image_with_boxes)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    else:
+        print(f"Erro: Não foi possível carregar a imagem em '{image_path}'.")
 
 
 def main():
@@ -89,6 +211,10 @@ def main():
     # Comando 'detect'
     parser_detect = subparsers.add_parser('detect', 
                                           help='Detecta faces em uma imagem usando um modelo treinado.')
+
+    # Comando 'run_all'
+    subparsers.add_parser('run_all',
+                          help='Executa o pipeline completo: preprocess, bootstrap, mix_data, train v3.')
     
     # Argumentos específicos que o comando 'detect' aceita:
     parser_detect.add_argument('--image', type=str, required=True, 
@@ -103,127 +229,32 @@ def main():
 
     try:
         if args.command == 'preprocess':
-            print("################### MODO: PRÉ-PROCESSAMENTO ###################")
-            preprocess_and_save_data(
-                base_paths=BASE_PATHS,
-                num_samples=NUM_SAMPLES,
-                window_size=WINDOW_SIZE,
-                save_path_base=DATA_PATH_1
-            )
-
-            print("Pré-processamento concluído.")
+            do_preprocess()
     
         elif args.command == 'train':
-            print(f"################### MODO: TREINAMENTO (Config: {args.config}) ###################")
-            if args.config == 'v1':
-                data_path = DATA_PATH_1
-                model_path = MODEL_PATH_1
-                lr = LEARNING_RATE_1
-                epochs = EPOCHS_1
-            elif args.config == 'v2': 
-                data_path = DATA_PATH_2
-                model_path = MODEL_PATH_2
-                lr = LEARNING_RATE_2
-                epochs = EPOCHS_2
-            else:
-                data_path = DATA_PATH_3
-                model_path = MODEL_PATH_3
-                lr = LEARNING_RATE_3
-                epochs = EPOCHS_3
-            
-            data_file_check = f"{data_path}_face.npy"
-            if not os.path.exists(data_file_check):
-                print(f"Erro: Dados 1 não encontrados em {data_file_check}. Execute:")
-                if args.config == 'v1':
-                    print(f"Execute: python {sys.argv[0]} preprocess")
-                elif args.config == 'v2':
-                    print(f"Execute: python {sys.argv[0]} bootstrap")
-                else:
-                    print(f"Execute: python {sys.argv[0]} mix_data")
-                sys.exit(1)
-                
-            run_training_pipeline(
-                data_path_base=data_path,
-                window_size=WINDOW_SIZE,
-                input_size=INPUT_SIZE,
-                model_save_path=model_path,
-                learning_rate=lr,    
-                epochs=epochs,
-                batch_size=BATCH_SIZE
-            )
-
-            print(f"Treinamento '{args.config}' concluído. Modelo salvo em: {model_path}")
+            do_train(args.config)
 
         elif args.command == 'bootstrap':
-            print("################### MODO: BOOTSTRAP ###################")
-            data_file_check = f"{DATA_PATH_1}_face.npy"
-            if not os.path.exists(data_file_check):
-                print(f"Erro: Dados 1 não encontrados em {data_file_check}. Execute primeiro:")
-                print(f"python {sys.argv[0]} preprocess")
-                sys.exit(1)
-
-            run_bootstrap_process(
-                data_path_v1=DATA_PATH_1,
-                base_paths_for_mining=BASE_PATHS,
-                data_path_v2=DATA_PATH_2,
-                model_v1_path=MODEL_PATH_1,
-                window_size=WINDOW_SIZE,
-                input_size=INPUT_SIZE,
-                learn_rate_v1=LEARNING_RATE_1,
-                epochs_v1=EPOCHS_1,
-                batch_size=BATCH_SIZE,
-                hard_negative_threshold=HARD_NEGATIVE_THRESHOLD
-            )
+            do_bootstrap()
 
         elif args.command == 'mix_data':
-            print("################### MODO: MIXAGEM DE DADOS (V3) ###################")
-            check_v1_face = f"{DATA_PATH_1}_face.npy"
-            check_v1_non = f"{DATA_PATH_1}_non_face.npy"
-            check_v2_non = f"{DATA_PATH_2}_non_face.npy"
-            
-            if not (os.path.exists(check_v1_face) and os.path.exists(check_v1_non) and os.path.exists(check_v2_non)):
-                 print(f"Erro: Dados v1 ou v2 não encontrados.")
-                 print("Verifique se os arquivos abaixo existem:")
-                 print(f"  - {check_v1_face}")
-                 print(f"  - {check_v1_non}")
-                 print(f"  - {check_v2_non}")
-                 print(f"\nExecute 'python {sys.argv[0]} preprocess' e 'python {sys.argv[0]} bootstrap' primeiro.")
-                 sys.exit(1)
-            
-            create_mixed_dataset(
-                data_path_v1=DATA_PATH_1,
-                data_path_v2=DATA_PATH_2,
-                save_path_base=DATA_PATH_3
-            )
+            do_mix_data()
+        
+        elif args.command == 'run_all':
+            print("################### MODO: PIPELINE COMPLETO ###################")
+            print("\nETAPA 1: PRÉ-PROCESSAMENTO")
+            do_preprocess()
+            print("\nETAPA 2: BOOTSTRAP")
+            do_bootstrap()
+            print("\nETAPA 3: MIXAGEM DE DADOS")
+            do_mix_data()
+            print("\nETAPA 4: TREINAMENTO FINAL (v3)")
+            do_train(config='v3')
+            print("\n################### PIPELINE COMPLETO CONCLUÍDO ###################")
+            print(f"Modelo final salvo em: {MODEL_PATH_3}")
 
         elif args.command == 'detect':
-            print("################### MODO: DETECÇÃO ###################")
-            if not os.path.exists(args.model):
-                print(f"Erro: Modelo não encontrado em '{args.model}'.")
-                print(f"Para treinar o V1 (fácil): python {sys.argv[0]} train --config v1")
-                print(f"Para treinar o V2 (difícil): python {sys.argv[0]} train --config v2")
-                sys.exit(1)
-            
-            detector = FaceDetector(
-                model_path=args.model,
-                confidence_threshold=args.threshold
-            )
-            
-            # Roda a detecção na imagem fornecida
-            image_color, detections = detector.detect(args.image)
-
-            if image_color is not None:
-                print(f"Encontradas {len(detections)} faces.")
-
-                # Desenha as caixas nas imagens
-                image_with_boxes = FaceDetector.draw_boxes(image_color.copy(), detections)
-
-                # Mostra a imagem em uma janela do OpenCV
-                cv2.imshow("Faces Detectadas (Pressione qualquer tecla para sair)", image_with_boxes)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-            else:
-                print(f"Erro: Não foi possível carregar a imagem em '{args.image}'.")
+            do_detect(args.image, args.model, args.threshold)
 
     except Exception as e:
         print(f"\nUM ERRO INESPERADO OCORREU")
