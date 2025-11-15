@@ -56,6 +56,44 @@ def image_slight_translation(image, trans_range=(-2, 2)):
 
 """--------------------------- Funções Auxiliares da Geração dos Dados ------------------------------------"""
 
+# alinha as amostra que já foram recortadas
+def align_face(image, predictor, window_size):
+
+    try:
+        face = dlib.rectangle(0, 0, image.shape[1], image.shape[0])
+        landmarks = predictor(image, face)
+        left_eye_pts = [(landmarks.part(n).x, landmarks.part(n).y) for n in range(36, 42)]
+        right_eye_pts = [(landmarks.part(n).x, landmarks.part(n).y) for n in range(42, 48)]
+        
+        left_eye_center = np.mean(left_eye_pts, axis=0).astype("int")
+        right_eye_center = np.mean(right_eye_pts, axis=0).astype("int")
+
+        dy = right_eye_center[1] - left_eye_center[1]
+        dx = right_eye_center[0] - left_eye_center[0]
+        angle = np.degrees(np.arctan2(dy, dx))
+
+        dist = np.sqrt((dx ** 2) + (dy ** 2))
+        desired_dist = 0.3 * window_size[0] 
+        scale = desired_dist / dist
+
+        eyes_center = ((left_eye_center[0] + right_eye_center[0]) // 2,
+                    (left_eye_center[1] + right_eye_center[1]) // 2)
+
+        M = cv2.getRotationMatrix2D(eyes_center, angle, scale)
+
+        tX = window_size[0] * 0.5 - eyes_center[0]
+        tY = window_size[1] * 0.4 - eyes_center[1]
+        M[0, 2] += tX
+        M[1, 2] += tY
+        (w, h) = window_size
+        aligned_face = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC)
+
+        return aligned_face
+    
+    except Exception:
+
+        return None
+
 # Aplica aumentações padrão em uma amostra de face (acrescenta)
 def _get_face_augmentations(normalized_face):
     return [
@@ -67,19 +105,26 @@ def _get_face_augmentations(normalized_face):
     ]
 
 # Extrai, redimensiona e processa uma única amostra de face
-def _process_face_sample(image_gray_normalized, face_bbox, window_size):
+def _process_face_sample(image_gray_normalized, face_bbox, window_size, predictor, clahe):
     x1, y1, x2, y2 = face_bbox
     face_crop = image_gray_normalized[y1:y2, x1:x2]
     
     if face_crop.size == 0:
         return []
+    
+    aligned_face =  align_face(face_crop, predictor, window_size) 
 
-    resized_face = cv2.resize(face_crop, window_size, interpolation=cv2.INTER_AREA)
+    if aligned_face is None:
+        aligned_face = cv2.resize(face_crop, window_size, interpolation=cv2.INTER_AREA)
 
-    return _get_face_augmentations(resized_face)
+    image_norm = clahe.apply(aligned_face)
+
+    return _get_face_augmentations(image_norm)
 
 # Gera múltiplas amostras de não-face de uma imagem
-def _generate_non_face_samples(image_gray_normalized, face_bbox, window_size, iou_threshold, target_count, max_attempts= 20):
+def _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold, clahe, target_count, max_attempts= 20):
+
+    image_gray_normalized = clahe.apply(image_gray)
     samples = []
     img_h, img_w = image_gray_normalized.shape 
     
@@ -105,19 +150,22 @@ def _process_image_worker(image_info, window_size, iou_threshold_neg):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
     try:
+        predictor = dlib.shape_predictor("landMarks/shape_predictor_68_face_landmarks.dat")
+    except Exception:
+        print("Erro ao carregar shape_predictor_68_face_landmarks.dat. Certifique-se de que o arquivo está no diretório correto.")
+
+    try:
         image_color = cv2.imread(image_info['image_path'])
         if image_color is None:
             return [], []
 
         image_gray = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
         face_bbox = image_info['bbox']
-
-        image_norm = clahe.apply(image_gray)
         
-        face_samples = _process_face_sample(image_norm, face_bbox, window_size)
+        face_samples = _process_face_sample(image_gray, face_bbox, window_size, predictor, clahe)
         num_faces_generated = len(face_samples)
 
-        non_face_samples = _generate_non_face_samples(image_norm, face_bbox, window_size, iou_threshold_neg, target_count=num_faces_generated)
+        non_face_samples = _generate_non_face_samples(image_gray, face_bbox, window_size, iou_threshold_neg, clahe, target_count=num_faces_generated)
 
         return face_samples, non_face_samples
         
@@ -192,7 +240,8 @@ def generate_data(base_paths, num_samples, window_size= (32, 32), iou_threshold_
     all_info = _load_annotations(base_paths)
     dataset_to_process = _select_samples_to_process(all_info, num_samples)
 
-    print("Começando processamento paralelo ...")
+    print("Começando " \
+    "processamento paralelo ...")
 
     results = Parallel(n_jobs=-1)(
         delayed(_process_image_worker)(
