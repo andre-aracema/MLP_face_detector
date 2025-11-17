@@ -219,10 +219,6 @@ def main():
     # Comando 'detect'
     parser_detect = subparsers.add_parser('detect', 
                                           help='Detecta faces em uma imagem usando um modelo treinado.')
-
-    # Comando 'run_all'
-    subparsers.add_parser('run_all',
-                          help='Executa o pipeline completo: preprocess, bootstrap, mix_data, train v3.')
     
     # Argumentos específicos que o comando 'detect' aceita:
     parser_detect.add_argument('--image', type=str, required=True, 
@@ -231,6 +227,10 @@ def main():
                                help=f'Caminho para o modelo .keras (padrão: {DEFAULT_MODEL_FOR_DETECT})')
     parser_detect.add_argument('--threshold', type=float, default=DEFAULT_DETECTION_THRESHOLD, 
                                help=f'Limiar de confiança para detecção (padrão: {DEFAULT_DETECTION_THRESHOLD})')
+
+    # Comando 'run_all'
+    subparsers.add_parser('run_all',
+                          help='Executa o pipeline completo: preprocess, bootstrap, mix_data, train v3.')
 
     # Analisa os argumentos fornecidos pelo usuário
     args = parser.parse_args()
