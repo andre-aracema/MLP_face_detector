@@ -2,7 +2,8 @@
 tensorflow
 scikit-learn 
 numpy 
-opencv-python 
+opencv
 pandas 
 tqdm 
 joblib
+dlib
