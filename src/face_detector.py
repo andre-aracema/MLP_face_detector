@@ -14,8 +14,8 @@ class FaceDetector:
                  confidence_threshold= 0.70,
                  scale_factor= 0.9,
                  stride= 4,
-                 iou_nms_threshold= 0.3,
-                 variance_threshold= 1200.0,
+                 iou_nms_threshold= 0.2,
+                 variance_threshold= 700.0,
                  edge_density_threshold= 0.15):
 
         self.model: Model = load_model(model_path)
@@ -82,21 +82,19 @@ class FaceDetector:
             scale *= self.scale_factor
 
     # Verifica se um patch é interessante o suficiente para ser enviado à rede neural
-    def _is_patch_valid(self, patch):
-        # Filtro de Variância (evita áreas "planas")
+    def _is_patch_valid(self, patch, patch_edge_map):
         if patch.var() < self.variance_threshold:
             return False
 
-        # Filtro de Densidade de Borda (evita áreas muito simples)
-        edge_map = cv2.Canny(patch, 50, 150)
-        density = np.count_nonzero(edge_map) / patch.size
+        # Usa o mapa pré-calculado (muito rápido)
+        density = np.count_nonzero(patch_edge_map) / patch.size
         if density < self.edge_density_threshold:
             return False
             
         return True
 
     # Executa a "janela deslizante" (sliding window) em uma única escala. Retorna apenas os patches que passam nos filtros
-    def _generate_and_filter_patches(self, image_scaled):
+    def _generate_and_filter_patches(self, image_scaled, edge_map_whole):
         h_win, w_win = self.window_size
         valid_patches = []
         valid_coords = []
@@ -105,7 +103,10 @@ class FaceDetector:
             for x in range(0, image_scaled.shape[1] - w_win, self.stride):
                 patch = image_scaled[y:y + h_win, x:x + w_win]
                 
-                if self._is_patch_valid(patch):
+                # Recorta a borda correspondente do mapa global
+                patch_edges = edge_map_whole[y:y + h_win, x:x + w_win]
+                
+                if self._is_patch_valid(patch, patch_edges):
                     valid_patches.append(patch)
                     valid_coords.append((x, y))
                     
@@ -125,24 +126,22 @@ class FaceDetector:
     # 1. Gera patches, 2. Prevê, 3. Converte coordenadas
     def _scan_image_scale(self, image_scaled, scale):
         h_win, w_win = self.window_size
-        patches, coords = self._generate_and_filter_patches(image_scaled)
         
-        if not patches:
-            return []
+        edge_map_whole = cv2.Canny(image_scaled, 50, 150)
+        
+        patches, coords = self._generate_and_filter_patches(image_scaled, edge_map_whole)
+        
+        if not patches: return []
 
         scores = self._batch_predict(patches)
-        
         detections = []
         for i, score in enumerate(scores):
             if score >= self.confidence_threshold:
                 x, y = coords[i]
-                
-                # Converte coordenadas de volta para a escala original
                 x1_orig = int(x / scale)
                 y1_orig = int(y / scale)
                 x2_orig = int((x + w_win) / scale)
                 y2_orig = int((y + h_win) / scale)
-                
                 detections.append((x1_orig, y1_orig, x2_orig, y2_orig, score))
                 
         return detections
@@ -164,17 +163,44 @@ class FaceDetector:
         if not detections:
             return []
 
-        # Ordena pela pontuação (score) [índice 4], da maior para a menor
+        # Ordena pela pontuação (score), da maior para a menor
         sorted_boxes = sorted(detections, key=lambda x: x[4], reverse=True)
 
         final_boxes = []
         while sorted_boxes:
-            # Pega a melhor caixa e a remove da lista
+            # Pega a melhor caixa
             chosen_box = sorted_boxes.pop(0)
             final_boxes.append(chosen_box)
 
-            # Filtra a lista, mantendo apenas caixas que NÃO se sobrepõem muito com a caixa escolhida
-            sorted_boxes = [box for box in sorted_boxes if calculate_iou(chosen_box[:4], box[:4]) < self.iou_nms_threshold]
+            remaining_boxes = []
+            for box in sorted_boxes:
+                # 1. Calcula IoU Padrão
+                iou = calculate_iou(chosen_box[:4], box[:4])
+                
+                # 2. Cálculo Extra: Interseção sobre a Área do MENOR (IoM)
+                # Isso serve para remover caixas que estão 'dentro' da escolhida (concêntricas)
+                x1 = max(chosen_box[0], box[0])
+                y1 = max(chosen_box[1], box[1])
+                x2 = min(chosen_box[2], box[2])
+                y2 = min(chosen_box[3], box[3])
+                
+                inter_w = max(0, x2 - x1)
+                inter_h = max(0, y2 - y1)
+                intersection_area = inter_w * inter_h
+                
+                area_chosen = (chosen_box[2] - chosen_box[0]) * (chosen_box[3] - chosen_box[1])
+                area_box = (box[2] - box[0]) * (box[3] - box[1])
+                min_area = min(area_chosen, area_box)
+                
+                # Porcentagem de cobertura da menor caixa
+                overlap_ratio = intersection_area / (min_area + 1e-6)
+
+                # Lógica de Supressão:
+                # Remove se IoU for alto (padrão) OU se uma caixa estiver >80% dentro da outra
+                if iou < self.iou_nms_threshold and overlap_ratio < 0.8:
+                    remaining_boxes.append(box)
+            
+            sorted_boxes = remaining_boxes
 
         return final_boxes
 
@@ -222,7 +248,7 @@ class FaceDetector:
             print("Verifique se a função '_load_annotations' está em 'src/preprocessing.py'.")
             raise e
 
-        MAX_IMAGES_TO_MINE = 300000
+        MAX_IMAGES_TO_MINE = 1000000
         
         if len(all_annotations) > MAX_IMAGES_TO_MINE:
             print(f"AVISO: O dataset é muito grande. Minerando um subconjunto aleatório de {MAX_IMAGES_TO_MINE} imagens...")

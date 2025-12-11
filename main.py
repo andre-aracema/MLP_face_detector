@@ -4,6 +4,7 @@ Comandos:
   - train:      Treina o modelo MLP usando os dados .npy (sem estourar a RAM).
   - bootstrap:  Treina utilizando hard negatives.
   - mix_data:   Junta os dados da mineração (hard) com os fáceis.
+  - evaluate:   Acurácia na detecção.
   - detect:     Detecta faces em uma imagem usando o modelo treinado.
   - run_all:    Executa o pipeline completo.
 """
@@ -16,6 +17,7 @@ import os
 from src.face_detector import FaceDetector
 from src.bootstrap import run_bootstrap_process
 from src.data_mixer import create_mixed_dataset
+from src.evaluation import evaluate_detection_performance
 from src.training_pipeline import preprocess_and_save_data, run_training_pipeline 
 
 
@@ -59,7 +61,7 @@ WINDOW_SIZE = (32, 32)
 INPUT_SIZE = WINDOW_SIZE[0] * WINDOW_SIZE[1]
 BATCH_SIZE = 32
 
-DEFAULT_DETECTION_THRESHOLD = 0.6
+DEFAULT_DETECTION_THRESHOLD = 0.9
 DEFAULT_MODEL_FOR_DETECT = MODEL_PATH_3
 
 
@@ -216,6 +218,14 @@ def main():
     subparsers.add_parser('mix_data',
                           help='Cria um dataset (v3) misturando não-faces fáceis (v1) e difíceis (v2).')
 
+    # Comando 'evaluate'
+    parser_eval = subparsers.add_parser('evaluate', help='Avalia acurácia, FP e desenha caixas.')
+
+    # Argumento específico que o comando evaluate aceita:
+    parser_eval.add_argument('--model', type=str, default=MODEL_PATH_3, help='Qual modelo testar.')
+    parser_eval.add_argument('--conf', type=float, default=0.9, 
+                             help='Limiar de confiança (0.0 a 1.0). Padrão: 0.9')
+
     # Comando 'detect'
     parser_detect = subparsers.add_parser('detect', 
                                           help='Detecta faces em uma imagem usando um modelo treinado.')
@@ -247,6 +257,18 @@ def main():
 
         elif args.command == 'mix_data':
             do_mix_data()
+
+        elif args.command == 'evaluate':
+            json_path = "data/detection_test_set.json"
+            if not os.path.exists(json_path):
+                print("Erro: JSON de teste não encontrado. Rode 'preprocess' primeiro.")
+                sys.exit(1)
+                
+            evaluate_detection_performance(
+                model_path=args.model,
+                test_set_json_path=json_path,
+                confidence_threshold=args.conf
+            )
         
         elif args.command == 'run_all':
             print("################### MODO: PIPELINE COMPLETO ###################")

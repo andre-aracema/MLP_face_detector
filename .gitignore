@@ -1,5 +1,6 @@
 # Ignorar a pasta de dados inteira
 data/
+results/
 
 # Ignorar a pasta de modelos treinados (são artefatos, não código-fonte)
 models/

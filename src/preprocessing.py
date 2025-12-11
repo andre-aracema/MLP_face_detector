@@ -5,6 +5,7 @@ import random
 import cv2
 import numpy as np
 import dlib
+import json
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
@@ -185,12 +186,58 @@ def _aggregate_and_save_results(results, save_path):
 
     return face_array, non_face_array
 
+# Separa uma porcentagem das imagens para serem usadas APENAS no teste de detecção.
+def split_and_save_detection_test_set(all_dataset_info, save_path, test_percentage=0.05):
+    # Embaralha para garantir aleatoriedade
+    random.shuffle(all_dataset_info)
+    
+    num_test = int(len(all_dataset_info) * test_percentage)
+    
+    # Se tiver pouquíssimas imagens, garante pelo menos algumas para teste
+    if num_test < 10 and len(all_dataset_info) > 20:
+        num_test = 10
+    
+    # Separa o conjunto de teste (imagens inteiras)
+    test_set = all_dataset_info[:num_test]
+    train_pool = all_dataset_info[num_test:]
+    
+    # Salva o conjunto de teste em um JSON
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w') as f:
+        json.dump(test_set, f, indent=4)
+        
+    print(f"\n[INFO] Benchmark de Detecção criado!")
+    print(f"  - {len(test_set)} imagens reservadas em '{save_path}'.")
+    print(f"  - Elas NÃO serão usadas no treino.")
+    
+    return train_pool
+
 """---------------------------------------------------------------------------------------------------------"""
 
 # Orquestra o pipeline de geração de dados
-def generate_data(base_paths, num_samples, window_size= (32, 32), iou_threshold_neg= 0.1, save_path= None):
+def generate_data(base_paths, num_samples, window_size=(32, 32), iou_threshold_neg=0.1, save_path=None):
     all_info = _load_annotations(base_paths)
-    dataset_to_process = _select_samples_to_process(all_info, num_samples)
+
+    # Lógica de separação do Teste de Detecção
+    detection_test_file = "data/detection_test_set.json" 
+    
+    if os.path.exists(detection_test_file):
+        print(f"\nUsando conjunto de teste de detecção JÁ EXISTENTE: {detection_test_file}")
+        with open(detection_test_file, 'r') as f:
+            test_data = json.load(f)
+        
+        # Cria um set com os caminhos das imagens de teste para busca rápida
+        test_paths_set = set([t['image_path'] for t in test_data])
+        
+        # Mantém apenas o que NÃO está no teste
+        dataset_to_process = [item for item in all_info if item['image_path'] not in test_paths_set]
+        print(f"  - Imagens removidas do pool de treino (já estão no teste): {len(test_paths_set)}")
+    else:
+        # Se não existe, cria agora
+        dataset_to_process = split_and_save_detection_test_set(all_info, detection_test_file)
+
+    # Continua o fluxo normal com o dataset filtrado
+    dataset_to_process = _select_samples_to_process(dataset_to_process, num_samples)
 
     print("Começando processamento paralelo ...")
 
